@@ -1,0 +1,12 @@
+# Checkpoints automáticos de Jupyter / VS Code
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Caché de ejecución de Python (generado al importar alc.py)
+__pycache__/
+*.py[cod]
+
+# Archivos temporales de exportación o ejecución
+*.nbconvert.ipynb
+*.tmp
+*.temp
