@@ -409,3 +409,24 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
   # se supone que si el det(R) es -1 entonces tengo que multiplicar t y R por -1 pues me queda espejado por householder, pero habria que preguntar. tampoco tengo funcion de determinante
   return R , t, Knormalizada
 
+def obtenerQ2d(imgPts, objPts):
+   '''
+   Retorna la matriz Q asociada a la ecuacion Qh = 0.
+   '''
+
+def armarA(Hlst):
+   '''
+   - Hlst: lista de matrices H_j correspondientes a N capturas de mira, obtenidas a partir de la ecuacion Qh = 0.
+   Retorna la matriz A asociada a la ecuacion Ab = 0 del Metodo de Tsai.
+   '''
+
+def calcularMatrizK2D(A):
+   '''
+   - A: matriz asociada a la ecuacion Ab = 0 del Metodo de Tsai.
+   Retorna la matriz K.
+   '''
+
+def obtenerPose2D(Hj, K):
+   '''
+    Retorna la pose de la vista j como R_j y t_j a partir de la matriz K y la H_j correspondiente.
+   '''
