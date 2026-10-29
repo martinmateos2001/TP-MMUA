@@ -134,6 +134,10 @@ def normaExacta(A, p=[1,'inf']):
     return None
 
 def multMat(A,B):
+  '''
+  - A,B: Arreglos numpy.
+  Retorna la multiplicación matricial de A y B.
+  '''
   if A.ndim == 1:
       A = A.reshape(1,-1)
   if B.ndim == 1:
@@ -149,6 +153,10 @@ def multMat(A,B):
     return C
 
 def productoPunto(v,w):
+  '''
+  - v,w: vectores de numpy.
+  Retorna el prodcuto punto de v y w.
+  '''
   if len(v) == len(w):
     suma = 0
     for i in range(0,len(v)):
@@ -156,6 +164,10 @@ def productoPunto(v,w):
     return suma
 
 def normavector2(x):
+  '''
+  - x: vector de numpy.
+  Retorna la Norma-2 del vector x.
+  '''
   norma = 0
   for i in range(0,len(x)):
     norma = norma + x[i]**2
@@ -163,11 +175,23 @@ def normavector2(x):
   return norma
 
 def normalizar(x):
+  '''
+  - x: vector de numpy.
+  Retorna el vector x normalizado.
+  '''
   norma = normavector2(x)
   x = x / norma
   return x
 
 def metpot2k(A,tol=1e-15,kmax=1000):
+  """
+  - A, matriz n x n
+  - tol, tolerancia en la diferencia entre un paso y el siguiente en la estimación del autovector.
+  - K, numero máximo de iteraciones a realizarse.
+  Retorna:
+      v, l, k
+  Donde v es un autovector A, l es el autovalor de A con autovector v, k el número de iteraciones. 
+  """
   if A.shape[0] == A.shape[1]:
     cantops = 0
     n = A.shape[0]
@@ -196,6 +220,13 @@ def metpot2k(A,tol=1e-15,kmax=1000):
     return autovector,autovalor,k
 
 def diagRH(A, tol=1e-14, K=1000): # retorna S, D tq A = S @ D @ S.T
+    """
+    A: matriz n x n simétrica.
+    tol: tolerancia en la estimación del autovector. 
+    K: numero de iteraciones máxima.
+    Retorna matriz de autovectores S y la matriz de autovalores D, tal que A = S@D@S.T.
+    En caso de que no sea simetrica retorna None.
+    """
     if A.shape[0] == A.shape[1]:
         n = A.shape[0]
         v1, l1, _ = metpot2k(A)
@@ -305,7 +336,13 @@ def svd_reducida(A, k="max", tol=1e-15):
     if se_traspuso:
         hatU, hatV = hatV, hatU
     return hatU, hatSig, hatV
+
 def puntosfotoi(i,uv):
+  '''
+  - i: Entero que representa la i-ésima foto de puntos 2D.
+  - uv: Tabla de fotos donde cada fila es representa una foto que se compone de 12 pares de float, es decir uv es (210 x 24) 
+
+  '''
   puntos = []
   for j in range(0,uv.shape[1]-1,2):
     puntos.append(uv[i,j:j+2])
@@ -321,16 +358,40 @@ def convertirP(pcorners):
     Puntosi = np.array(pi)
   return Puntosi
 
-def formarQ(P,uvpuntos):
+# 2A
+def obtenerQ3d(imgPts, objPts):
+  '''
+  - imgPts: arreglo numpy (12 x 2), coordenadas de pixeles de una imagen.
+  - objPts: arreglo numpy (12 x 3), coordenadas 3D asociadas a cada coordenada de imgPts.
+  Retorna la matriz Q asociada a la ecuacion Qm=0 utilizada para obtener la matriz de calibración M.
+  '''
   Q = np.zeros((24,12))
   for i in range(0,12):
-    Q[2*i,0:4] = P[i]
-    Q[2*i,8:12] = -uvpuntos[i][0]*P[i]
-    Q[2*i+1,4:8] = P[i]
-    Q[2*i+1,8:12] = -uvpuntos[i][1]*P[i]
+    Q[2*i,0:4] = objPts[i]
+    Q[2*i,8:12] = -imgPts[i][0]*objPts[i]
+    Q[2*i+1,4:8] = objPts[i]
+    Q[2*i+1,8:12] = -imgPts[i][1]*objPts[i]
   return Q
 
+# 2B resolverDLT3D(Q) encuentra la matriz M a partir de Q, por 1b el vector m es el menor autovector asociado al menor valor singular osea V[:,-1] para nuestra SVD
+def resolverDLT3D(Q):
+  '''
+  - Q: matriz asociada a la ecuación Qm = 0 para obtener la matriz de proyeccion M.
+  Retorna la matriz de proyeccion M.
+  '''
+  _, _, V = svd_reducida(Q)
+  m = V[:,-1].copy() # tomo -1 para tomar el ultimo sin importar la dimension de V
+  m = m.reshape(3,4) # segun la ecuacion que aparece en el pdf es solo reorganizar los componentes del vector m en una matriz M de 3x4
+  return m
+
+# 2: C y D
 def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
+  '''
+  - M: matriz de proyeccion.
+  - uigualv: booleano, cuando es true indica que K_{1,1} = K_{2,2} (el factor de escala en los ejes es el mismo)
+  - k12igual0: booleano, cuando es true K_{1,2} = 0 (sesgo o la falta de perpendicularidad en los ejes es nulo/a).
+  Retorna la matriz de rotación R, el vector de traslacion t, la matriz de parametros intrinsecos K.
+  '''
   # M = resolverDLT3D(Q) se hace directamente desde M
   A = M[:,0:3].copy()
   b = M[:,3].copy()
@@ -348,9 +409,3 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
   # se supone que si el det(R) es -1 entonces tengo que multiplicar t y R por -1 pues me queda espejado por householder, pero habria que preguntar. tampoco tengo funcion de determinante
   return R , t, Knormalizada
 
-# 2b resolverDLT3D(Q) encuentra la matriz M a partir de Q, por 1b el vector m es el menor autovector asociado al menor valor singular osea V[:,-1] para nuestra SVD
-def resolverDLT3D(Q):
-  U,S,V = svd_reducida(Q)
-  m = V[:,-1].copy() # tomo -1 para tomar el ultimo sin importar la dimension de V
-  m = m.reshape(3,4) # segun la ecuacion que aparece en el pdf es solo reorganizar los componentes del vector m en una matriz M de 3x4
-  return m
