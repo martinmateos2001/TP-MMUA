@@ -336,6 +336,7 @@ def svd_reducida(A, k="max", tol=1e-15):
     if se_traspuso:
         hatU, hatV = hatV, hatU
     return hatU, hatSig, hatV
+# --- Ejercicio 2
 
 def puntosfotoi(i,uv):
   '''
@@ -357,6 +358,7 @@ def convertirP(pcorners):
     pi.append(pcorners[i].tolist() + [1])
     Puntosi = np.array(pi)
   return Puntosi
+
 
 # 2A
 def obtenerQ3d(imgPts, objPts):
@@ -409,10 +411,33 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
   # se supone que si el det(R) es -1 entonces tengo que multiplicar t y R por -1 pues me queda espejado por householder, pero habria que preguntar. tampoco tengo funcion de determinante
   return R , t, Knormalizada
 
-def obtenerQ2d(imgPts, objPts):
-   '''
-   Retorna la matriz Q asociada a la ecuacion Qh = 0.
-   '''
+# --- Ejercicio 3 ---
+
+def obtenerQ2d(imgPts, objPts): 
+    '''
+    - imgPts: arreglo (m x 2) de coordenadas de pixels.
+    - objPts: arreglo (m' x 3) de coordenadas 3D asociado a imgPts.
+    Requisito: m >= 4 y m = m'.
+
+    Retorna la matriz Q asociada a la ecuacion Qh = 0 para la obtención de una homografía.
+    -  Si m != m' entonces retorna None.
+    '''
+    m = imgPts.shape[0]
+    if(m != objPts.shape[0]):
+        print("Las coordenadas de puntos 2D y 3D no forman pares.")
+        return None
+    Q = np.zeros((2*m,9))
+    for i in range(0, m):
+        P = objPts[i].copy()
+        P[2] = 0
+        u = imgPts[i][0]
+        v = imgPts[i][1]
+        Q[2*i, 0:3] = P
+        Q[2*i, 6:] = -u*P
+        Q[2*i + 1, 0:3] = P
+        Q[2*i + 1, 6:] = -v*P
+    return Q
+
 
 def armarA(Hlst):
    '''
@@ -430,3 +455,4 @@ def obtenerPose2D(Hj, K):
    '''
     Retorna la pose de la vista j como R_j y t_j a partir de la matriz K y la H_j correspondiente.
    '''
+
