@@ -437,21 +437,158 @@ def obtenerQ2d(imgPts, objPts):
         Q[2*i + 1, 6:] = -v*P
     return Q
 
+def resolverQh(Q):
+    '''
+    - Q: Matriz asociada a la ecuación Qh=0.
+    Resuelve la ecuacion y retorna la matriz H asociada a h.
+    '''
+    _, _, V = svd_reducida(Q)
+    h = V[:,-1].copy() # tomo -1 para tomar el ultimo sin importar la dimension de V
+    H = h.reshape(3,3) # Reorganizo
+    return H
+
+def vijK(H, i, j):
+   return np.array([
+    H[0,i]*H[0,j],
+    H[0,i]* H[1,j] + H[1,i]*H[0,j],
+    H[1,i]*H[1,j],
+    H[0,i]*H[2,j] + H[2,i]*H[0,j],
+    H[1,i]*H[2,j] + H[2,i]*H[1,j],
+    H[2,i]*H[2,j]])
+
+def VK(H):
+   '''
+   - H: Homografía (3 x 3)
+   Retorna la matriz (2 x 6) que tiene como filas a los dos vectores que forman filas de A.
+   '''
+   return np.array([vijK(H, 0, 1), (vijK(H, 0, 0)- vijK(H, 1, 1))])
 
 def armarA(Hlst):
-   '''
-   - Hlst: lista de matrices H_j correspondientes a N capturas de mira, obtenidas a partir de la ecuacion Qh = 0.
-   Retorna la matriz A asociada a la ecuacion Ab = 0 del Metodo de Tsai.
-   '''
+    '''
+    - Hlst: lista de matrices H_j correspondientes a N capturas de mira, obtenidas a partir de la ecuacion Qh = 0.
+    Retorna la matriz A asociada a la ecuacion Ab = 0 del Metodo de Tsai.
+    '''
+    N = len(Hlst)
+    A = np.zeros((2*N, 6))
+    for i in range(0, N):
+      H = Hlst[i]
+      A[2*i, :] = VK(H)[0]
+      A[2*i+1, :] = VK(H)[1]
+    return A
+
+def calculaLU(A):
+    '''
+    - A: matriz definida positiva.
+    Retorna las matrices L, U y el número de operaciones, donde A=LU.
+    '''
+    if(A is None):
+        return None, None, 0
+    # dimensiones
+    m = A.shape[0]
+    n= A.shape[1]
+    if( m!=n):
+        return None, None, 0
+    Ac = A.copy()
+    # Identidad para crear L
+    L = np.eye(n)
+    ops = 0
+    j = 0
+    while(j < n-1):
+        # si el pivote es nulo no puedo operar
+        if(Ac[j][j] == 0):
+            return None, None, 0
+        i=j+1
+        
+        while(i<n):
+            if(Ac[i][j] != 0):
+                m = Ac[i][j] / Ac[j][j]
+                ops += 1
+                L[i][j]= m
+                Ac[i][j]=0.0 # asigno para no contar una operacion.
+                Ac[i][j+1:] = Ac[i][j+1:] - m * Ac[j][j+1:]
+                ops += 2*(n-(j+1)) # resto los que cambian, de la columna j+1 para atras son ceros.
+            i+=1
+        j+=1
+    return L, Ac, ops
+
+def calculaLDV(A):
+    LU = calculaLU(A)
+    L = LU[0]
+    U = LU[1]
+    Uc = np.copy(U)
+    D = np.zeros(A.shape)
+    n = A.shape[0]
+    for i in range(0, n):
+        D[i,i] = Uc[i,i]
+        for j in range(i, n):
+            if(Uc[i,j] != 0):
+                Uc[i,j] = Uc[i,j]/D[i,i]
+    return L, D, Uc
+
+def esSDP(A, atol=1e-5):
+    n=A.shape[0]
+    if(n != A.shape[1]):
+        return False
+    L,D,V= calculaLDV(A)
+    for i in range(0,n):
+        if(D[i,i] <= 0):
+            return False
+        for j in range(0, i+1):
+            if not (np.isclose(L[i,j], V[j,i], atol=atol)):
+                return False
+    return True
+
+def descCholesky(A):
+    '''
+    Dada A simetrica y definida positiva, retorna la matriz L triangular inferior tal que LL^t = A. 
+    '''
+    n = A.shape[0]
+    L = np.zeros((n,n))
+    for i in range(n):
+      for k in range(n):
+        s = 0
+        if i == k:
+            for j in range(k):
+              s += L[k,j]**2
+            L[k, k] = np.sqrt(A[k,k] - s)
+        if i > k:
+            for j in range(k):
+              s += L[i,j]*L[k,j]
+            L[i,k] = (A[i,k] - s)/L[k,k]
+    return L
 
 def calcularMatrizK2D(A):
-   '''
-   - A: matriz asociada a la ecuacion Ab = 0 del Metodo de Tsai.
-   Retorna la matriz K.
-   '''
+    '''
+    - A: matriz asociada a la ecuacion Ab = 0 del Metodo de Tsai.
+    Retorna la matriz K.
+    '''
+    # Resuelvo el sistema con cuadrados mínimos homogeneos con restriccion de norma.
+    _, _, V = svd_reducida(A)
+    b = V[:,-1].copy()
+    B = np.array(
+        [
+            [b[0], b[1], b[3]],
+            [b[1], b[2], b[4]],
+            [b[3], b[4], b[5]]
+        ]
+    )
+
+    if not esSDP(B):
+        B = -B
+
+
+    L = descCholesky(B)
+    K = inversa(L.T)
+    return K
 
 def obtenerPose2D(Hj, K):
-   '''
+    '''
     Retorna la pose de la vista j como R_j y t_j a partir de la matriz K y la H_j correspondiente.
-   '''
+    '''
+    c1 = Hj[:,0]
+    c2 = Hj[:,1]
+    c3 = Hj[:,2]
+    
+    l = 1/normavector2(multMat(inversa(K), c1))
+    r1 = l * multMat(K, c1)
 
