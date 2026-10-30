@@ -429,7 +429,6 @@ def obtenerQ2d(imgPts, objPts):
     Q = np.zeros((2*m,9))
     for i in range(0, m):
         P = objPts[i].copy()
-        P[2] = 0
         u = imgPts[i][0]
         v = imgPts[i][1]
         Q[2*i, 0:3] = P
