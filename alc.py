@@ -433,7 +433,7 @@ def obtenerQ2d(imgPts, objPts):
         v = imgPts[i][1]
         Q[2*i, 0:3] = P
         Q[2*i, 6:] = -u*P
-        Q[2*i + 1, 0:3] = P
+        Q[2*i + 1, 3:6] = P
         Q[2*i + 1, 6:] = -v*P
     return Q
 
