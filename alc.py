@@ -268,74 +268,95 @@ def diagRH(A, tol=1e-14, K=1000): # retorna S, D tq A = S @ D @ S.T
         return S, D
     
 def svd_reducida(A, k="max", tol=1e-15):
-    """
-    A la matriz de interes (de m x n)
-    k el numero de valores singulares (y vectores) a retener.
-    tol la tolerancia para considerar un valor singular igual a cero
-    Retorna hatU (matriz de m x k), hatSig (vector de k valores singulares) y hatV (matriz de n x k)
-    """
+  """
+  A la matriz de interes (de m x n)
+  k el numero de valores singulares (y vectores) a retener.
+  tol la tolerancia para considerar un valor singular igual a cero
+  Retorna hatU (matriz de m x k), hatSig (vector de k valores singulares) y hatV (matriz de n x k)
+  """
+  m, n = A.shape
+  se_traspuso = False
+  # Paso (iii): Si m < n, trabajamos sobre A^T para procesar una matriz mas chica y evitar ceros de mas
+  if m < n:
+    A = A.T
     m, n = A.shape
-    se_traspuso = False
-    # Paso (iii): Si m < n, trabajamos sobre A^T para procesar una matriz mas chica y evitar ceros de mas
-    if m < n:
-        A = A.T
-        m, n = A.shape
-        se_traspuso = True
+    se_traspuso = True
 
-    AtA = multMat(A.T, A)
-    S, D = diagRH(AtA) # D tiene los autovalores y V los autovectores
-    V = S
-    autovalores = np.zeros(n)
-    for i in range(0,n):
-      autovalores[i] = D[i,i]
-    # ahora debo ordenar autovalores y autovectores de mayor a menor
-    for i in range(0,len(autovalores)):
-      idmax = i
-      for j in range(i+1,n):
-        if autovalores[j]>autovalores[idmax]:
-          idmax = j
-      autovalores[i], autovalores[idmax] = autovalores[idmax], autovalores[i] # cambio de lugar el maximo y mi indice de ahora
-      tempautovector = V[:,i].copy()
-      V[:,i] = V[:,idmax]
-      V[:,idmax] = tempautovector
-    # ya tengo ordenados todos los autovalores y autovectores de mayor a menor toca filtrar los valores singulares con la tolerancia
+  AtA = multMat(A.T, A)
+  S, D = diagRH(AtA)  # D tiene los autovalores y V los autovectores
+  V = S
+  autovalores = np.zeros(n)
+  for i in range(0, n):
+    autovalores[i] = D[i, i]
+
+  # ahora debo ordenar autovalores y autovectores de mayor a menor
+  for i in range(0, len(autovalores)):
+    idmax = i
+    for j in range(i + 1, n):
+      if autovalores[j] > autovalores[idmax]:
+        idmax = j
+    autovalores[i], autovalores[idmax] = (
+        autovalores[idmax],
+        autovalores[i],
+    )  # cambio de lugar el maximo y mi indice de ahora
+    tempautovector = V[:, i].copy()
+    V[:, i] = V[:, idmax]
+    V[:, idmax] = tempautovector
+
+  # Si k == 'max', debemos retener los n autovectores sin descartar el espacio nulo (autovalores cercanos a 0)
+  if k == "max":
+    kretenido = n
+    hatSig = np.zeros(n)
+    hatV = np.zeros((n, n))
+    for i in range(n):
+      valor = max(autovalores[i], 0.0)
+      hatSig[i] = np.sqrt(valor)
+      hatV[:, i] = V[:, i]
+  else:
     tol_autovalor = max(tol**2, 1e-12)
-
     singulares = []
     autovectores = []
     for i in range(len(autovalores)):
       valor = autovalores[i]
       if valor > tol_autovalor:
         valorsing = np.sqrt(valor)
-        if valorsing>tol: # miro si el valor singular es mayor a la tolerancia, sino es 0
+        if valorsing > tol:  # miro si el valor singular es mayor a la tolerancia, sino es 0
           singulares.append(valorsing)
-          autovectores.append(V[:,i])
-    rango = len(singulares) # Guardo el rango maximo de la matriz viendo cuantos valores singulares tiene
-    if k =='max' or k>rango: # si pide rango maximo o mas(osea piden k= 13 y la matriz rango 12) tomo kretenido = rango de la matriz
+          autovectores.append(V[:, i])
+
+    rango = len(singulares)  # Guardo el rango maximo de la matriz viendo cuantos valores singulares tiene
+    if k > rango:
       kretenido = rango
     else:
       kretenido = int(k)
-    if kretenido ==0: # si piden rango 0
+
+    if kretenido == 0:  # si piden rango 0
       hatU = np.zeros((m, 0))
       hatSig = np.array([])
       hatV = np.zeros((n, 0))
-      return hatU, hatSig, hatV # basicamente devuelvo todo vacio
+      return hatU, hatSig, hatV  # basicamente devuelvo todo vacio
+
     # Ahora caso si k>0
-    hatSig = np.array(singulares[:kretenido]) # es una lista pues me pedian eso para mi funcion en este caso
-    hatV = np.zeros((n,kretenido)) # creo matriz nxk
-    for i in range(0,kretenido):
-      hatV[:,i] = autovectores[i] # copio los autovectores columna para V
+    hatSig = np.array(
+        singulares[:kretenido]
+    )  # es una lista pues me pedian eso para mi funcion en este caso
+    hatV = np.zeros((n, kretenido))  # creo matriz nxk
+    for i in range(0, kretenido):
+      hatV[:, i] = autovectores[i]  # copio los autovectores columna para V
 
-    # me falta crear U, lo voy a hacer con la formula de que Ui = 1/sigmai * Avi
-    # Puedo calcular mas facil si guardo todo Avi de una en una matriz B
-    B = multMat(A,hatV) # m*k dimensiones
-    hatU = np.zeros((m,kretenido))
-    for j in range(kretenido):
-      hatU[:,j] = B[:,j] / hatSig[j]
+  # me falta crear U, lo voy a hacer con la formula de que Ui = 1/sigmai * Avi
+  # Puedo calcular mas facil si guardo todo Avi de una en una matriz B
+  B = multMat(A, hatV)  # m*k dimensiones
+  hatU = np.zeros((m, kretenido))
+  for j in range(kretenido):
+    if hatSig[j] > 1e-14:  # Evita divisiones por cero en el espacio nulo
+      hatU[:, j] = B[:, j] / hatSig[j]
 
-    if se_traspuso:
-        hatU, hatV = hatV, hatU
-    return hatU, hatSig, hatV
+  if se_traspuso:
+    hatU, hatV = hatV, hatU
+
+  return hatU, hatSig, hatV
+
 # --- Ejercicio 2
 
 def puntosfotoi(i,uv):
@@ -558,37 +579,65 @@ def descCholesky(A):
     return L
 
 def calcularMatrizK2D(A):
-    '''
-    - A: matriz asociada a la ecuacion Ab = 0 del Metodo de Tsai.
-    Retorna la matriz K.
-    '''
-    # Resuelvo el sistema con cuadrados mínimos homogeneos con restriccion de norma.
-    _, _, V = svd_reducida(A)
-    b = V[:,-1].copy()
-    B = np.array(
-        [
-            [b[0], b[1], b[3]],
-            [b[1], b[2], b[4]],
-            [b[3], b[4], b[5]]
-        ]
-    )
+  '''
+  - A: matriz asociada a la ecuacion Ab = 0 del Metodo de Tsai.
+  Retorna la matriz K.
+  '''
+  # Resuelvo el sistema con cuadrados mínimos homogeneos con restriccion de norma.
+  # uso SVD reducida otra vez.
+  _, _, V = svd_reducida(A)
+  b = V[:,-1].copy()
+  B = np.array( # B simetrica tq K.-t * k.-1 = B
+    [
+          [b[0], b[1], b[3]],
+          [b[1], b[2], b[4]],
+          [b[3], b[4], b[5]]
+    ])
+  # Aca si B no es sdp entonces me quedo el vector con el signo invertido, entonces multiplico por -1
+  if B[0, 0] < 0:
+    B = -B
+  # 4. Verificación de seguridad antes de Cholesky
+  if not esSDP(B):
+    print("B no es SDP. Autovalores de B:", np.linalg.eigvalsh(B))
+    raise ValueError(
+        "La matriz B no es definida positiva. Revisar las homografías H o el número de vistas."
+  )
+  L = descCholesky(B)
+  K = inversa(L.T)
+  Knormalizada = K / K[2, 2]
+  return Knormalizada
 
-    if not esSDP(B):
-        B = -B
+def productoCruz(a, b):
+  # Aseguramos que los vectores estén desdoblados en 1D
+  a = a.reshape(-1)
+  b = b.reshape(-1)
 
+  c1 = a[1] * b[2] - a[2] * b[1]
+  c2 = a[2] * b[0] - a[0] * b[2]
+  c3 = a[0] * b[1] - a[1] * b[0]
 
-    L = descCholesky(B)
-    K = inversa(L.T)
-    return K
+  return np.array([c1, c2, c3])
 
 def obtenerPose2D(Hj, K):
-    '''
-    Retorna la pose de la vista j como R_j y t_j a partir de la matriz K y la H_j correspondiente.
-    '''
-    c1 = Hj[:,0]
-    c2 = Hj[:,1]
-    c3 = Hj[:,2]
-    
-    l = 1/normavector2(multMat(inversa(K), c1))
-    r1 = l * multMat(K, c1)
+  '''
+  Retorna la pose de la vista j como R_j y t_j a partir de la matriz K y la H_j correspondiente.
+  '''
+  Kinv = inversa(K)
+  # como ya voy a calcuar Kinv * c1 , c2 ,c3 multiplico todo y luego saco las columnas me ahorro cuentas
+  Kci = multMat(Kinv,Hj)
+  Kc1 = Kci[:,0]
+  Kc2 = Kci[:,1]
+  Kc3 = Kci[:,2]
+  lam = 1 / normavector2(Kc1) # calculamos lambda
+
+  r1 = lam * Kc1
+  r2 = lam * Kc2
+  r3 = productoCruz(r1,r2)
+  t = (lam * Kc3).reshape(3,1)
+
+  Rraw = np.array([r1,r2,r3]).T # las pongo como filas y traspongo para que queden como columnas
+
+  U,_,V = svd_reducida(Rraw)
+  R = multMat(U,V.T)
+  return R,t
 
