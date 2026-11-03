@@ -433,6 +433,9 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
   if k12igual0 == True:
     Knormalizada[0,1] = 0
   # se supone que si el det(R) es -1 entonces tengo que multiplicar t y R por -1 pues me queda espejado por householder, pero habria que preguntar. tampoco tengo funcion de determinante
+  if det(R) == -1:
+    R = -R
+    t = -t
   return R , t, Knormalizada
 
 # --- Ejercicio 3 ---
@@ -642,6 +645,10 @@ def obtenerPose2D(Hj, K):
 
   U,_,V = svd_reducida(Rraw)
   R = multMat(U,V.T)
+  if det(R) < 0:
+     R = -R
+     t = -t
+  
   return R,t
 
 def det(matriz):
