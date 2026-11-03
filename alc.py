@@ -1,4 +1,7 @@
+from math import pi
+
 import numpy as np
+from pandas import pivot
 # Librería de Funciones.
 def inversa(A):
   L,U,cantop = calculaLU(A)
@@ -640,4 +643,42 @@ def obtenerPose2D(Hj, K):
   U,_,V = svd_reducida(Rraw)
   R = multMat(U,V.T)
   return R,t
+
+def det(matriz):
+    A = np.array(matriz)
+    A = np.float32(A)
+    m, n = A.shape
+    if(m != n):
+        raise ValueError("La matriz no es cuadrada")
+    signo = np.float32(1)
+    res = np.float32(1)
+
+    for i in range(n):     
+        max_p = i
+        fila = i + 1
+        # busco el max pivote
+        while fila < n:
+            if abs(A[fila, i]) > abs(A[max_p, i]):
+                max_p = fila
+            fila += 1
+        pivote = A[max_p, i]
+        if pivote == 0.0:
+           return np.float32(0)
+        
+        # intercambio de filas
+        if(max_p != i):
+           f1 = A[i].copy()
+           f2 = A[max_p].copy()
+           A[i] = f2
+           A[max_p] = f1
+           signo = signo * (-1)
+        pivote = A[i,i]
+        res = res * pivote
+
+        # eliminación gaussiana
+        for j in range(i + 1, n):
+            multiplicador = A[j,i] / pivote
+            A[j,i + 1:] -= multiplicador * A[i, i+1:]
+            A[j, i] = np.float32(0)
+    return res * signo
 
