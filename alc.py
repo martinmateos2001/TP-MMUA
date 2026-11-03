@@ -645,6 +645,9 @@ def obtenerPose2D(Hj, K):
   return R,t
 
 def det(matriz):
+    '''
+    Obtencion del determinante de una matriz por el metodo de triangulacion por eliminacion Gaussiana.
+    '''
     A = np.array(matriz)
     A = np.float32(A)
     m, n = A.shape
