@@ -381,7 +381,7 @@ def convertirP(pcorners):
     Puntosi = np.array(pi)
   return Puntosi
 
-def normalizacionDePuntos(imgPts, objPts, homografia=False):
+def normalizacionDePuntos(imgPts, objPts):
   '''
   Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,Z,1), retorna ambas listas de puntos normalizadas 
   y las matrices de normalizacion T_img y T_world como sigue:
@@ -428,15 +428,50 @@ def normalizacionDePuntos(imgPts, objPts, homografia=False):
      [0, 0, s3d, -s3d * cen3d[2]],
      [0, 0, 0, 1]
   ])
+  return pts2d, pts3d, T_img, T_world
 
-  if homografia:
-     s3d=np.sqrt(2) / prom3d
-     T_world = np.array([
-          [s3d, 0, -s3d * cen3d[0]],
-          [0, s3d, -s3d * cen3d[1]],
-          [0, 0, 1]
-       ])
+def normalizacionDePuntosCop(imgPts, objPts):
+  pts2d=np.array(imgPts)
+  pts3d=np.array(objPts)
 
+  # centroides 2D y 3D
+  cen2d = np.mean(pts2d, axis=0)
+  cen3d = np.mean(pts3d[:, :2], axis=0)
+  
+  n = len(pts2d)
+  # traslacion
+  for i in range(n):
+    pts2d[i] -= cen2d
+    pts3d[i, :2] -= cen3d 
+
+  # promedio de las distancias al origen
+  prom2d = 0
+  prom3d = 0
+  for i in range(n):
+    prom2d += normavector2(pts2d[i])
+    prom3d += normavector2(pts3d[i, :2])
+  prom2d = prom2d / n
+  prom3d = prom3d / n
+
+  # factores de normalizacion
+  s2d = np.sqrt(2) / prom2d
+  s3d = np.sqrt(2) / prom3d
+  
+  for i in range(n):
+    pts2d[i] = pts2d[i] * s2d
+    pts3d[i, :2] = pts3d[i, :2] * s3d
+
+  T_img = np.array([
+      [s2d, 0, -s2d * cen2d[0]],
+      [0, s2d, -s2d * cen2d[1]],
+      [0, 0, 1]
+  ])
+
+  T_world = np.array([
+    [s3d, 0, -s3d * cen3d[0]],
+    [0, s3d, -s3d * cen3d[1]],
+    [0, 0, 1]
+  ])
   return pts2d, pts3d, T_img, T_world
 # 2A
 def obtenerQ3d(imgPts, objPts):
