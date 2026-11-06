@@ -381,7 +381,7 @@ def convertirP(pcorners):
     Puntosi = np.array(pi)
   return Puntosi
 
-def normalizacionDePuntos(imgPts, objPts):
+def normalizacionDePuntos(imgPts, objPts, homografia=False):
   '''
   Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,Z,1), retorna ambas listas de puntos normalizadas 
   y las matrices de normalizacion T_img y T_world como sigue:
@@ -428,6 +428,14 @@ def normalizacionDePuntos(imgPts, objPts):
      [0, 0, s3d, -s3d * cen3d[2]],
      [0, 0, 0, 1]
   ])
+
+  if homografia:
+     s3d=np.sqrt(2) / prom3d
+     T_world = np.array([
+          [s3d, 0, -s3d * cen3d[0]],
+          [0, s3d, -s3d * cen3d[1]],
+          [0, 0, 1]
+       ])
 
   return pts2d, pts3d, T_img, T_world
 # 2A
@@ -976,3 +984,20 @@ def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
     yk = y_orig * (1 + epsilon)
 
   return Rmejor,tmejor
+
+def errorRelativoMatrizProyeccion(M, imgPts, objPts):
+  '''
+  Dada una matriz de proyeccion M, la lista de puntos 2D imgPts, la lista de puntos del objeto objPts.
+  Retorna el promedio de los errores relativos de los puntos 2D obtenidos por la matriz M.
+  '''
+  #Calculo de errores normalizando
+  errores_rel = []
+  for i in range(len(objPts)):
+      uv = imgPts[i]
+      uv_obtenido = multMat(M, objPts[i]).reshape(-1)
+      uv_obtenido = uv_obtenido[:2]/uv_obtenido[2]
+      nuv = normavector2(uv)
+      nuv_obt = normavector2(uv_obtenido)
+      err_rel = abs(nuv - nuv_obt)/ nuv
+      errores_rel.append(err_rel)
+  return np.mean(errores_rel)
