@@ -2,6 +2,7 @@ from math import pi
 
 import numpy as np
 from pandas import pivot
+import pandas as pd
 # Librería de Funciones.
 def inversa(A):
   L,U,cantop = calculaLU(A)
@@ -744,157 +745,73 @@ def det(matriz):
             A[j, i] = np.float32(0)
     return res * signo
 #--------------------------Ejercicio 5 (hecho por chatgpt, en proceso de chequeo)-------------------
-import numpy as np
-import pandas as pd
-import os
-import cv2
-import matplotlib.pyplot as plt
+ # Importamos el módulo alc.py con las funciones implementadas por el grupo
 
-# ==============================================================================
-# FUNCIONES AUXILIARES DE OPERACIONES MATRICIALES (SIN USAR @ NI np.dot)
-# ==============================================================================
-
-def multiplicar_matrices(A, B):
+def resolver_calibracion_5a(path_csv):
     """
-    Realiza la multiplicación matricial A @ B utilizando únicamente 
-    operaciones permitidas (multiplicación elemento a elemento y np.sum).
-    Esto cumple con la restricción de no usar @, np.dot ni np.matmul.
+    Calcula los parámetros intrínsecos de la cámara (K) a partir de las diferentes 
+    vistas y los puntos del archivo world_img_pts.csv, siguiendo el método de Zhang.
     """
-    # A es de (m, k) y B es de (k, n). 
-    # Usamos broadcasting expandiendo dimensiones:
-    # A[:, :, np.newaxis] tiene forma (m, k, 1)
-    # B[np.newaxis, :, :] tiene forma (1, k, n)
-    return np.sum(A[:, :, np.newaxis] * B[np.newaxis, :, :], axis=1)
-
-# ==============================================================================
-# EJERCICIO 5: CALIBRACIÓN 3D, POSE Y CÁLCULO DE VELOCIDAD
-# ==============================================================================
-
-def obtenerQ3d(imgPts, objPts):
-    """
-    Construye la matriz Q en R^(2n x 12) para el método DLT 3D a partir 
-    de las correspondencias entre puntos 3D (objPts) y 2D (imgPts).
+    # 1. Carga de datos
+    # El archivo contiene las coordenadas 3D del mundo (X, Y, Z) y las posiciones (u, v) por vista.
+    datos = pd.read_csv(path_csv)
     
-    Parámetros:
-    - imgPts: Array de puntos en la imagen de forma (n, 2) con coordenadas (u, v).
-    - objPts: Array de puntos 3D del mundo de forma (n, 3) con coordenadas (U, V, W).
+    # Extraemos las coordenadas espaciales (U, V) del plano (asumiendo Z=0 o el plano de referencia)
+    # y las correspondencias (u, v) para cada una de las k vistas disponibles en el dataset.
     
-    Retorna:
-    - Q: Matriz del sistema homogéneo Qm = 0 de dimensiones (2n, 12).
-    """
-    n = objPts.shape[0]
-    Q = np.zeros((2 * n, 12), dtype=np.float32)
+    Hlst = []  # Lista para almacenar las homografías de cada vista
     
-    for i in range(n):
-        U = objPts[i, 0]
-        V = objPts[i, 1]
-        W = objPts[i, 2]
-        u = imgPts[i, 0]
-        v = imgPts[i, 1]
+    # Suponiendo que iteramos sobre las K vistas presentes en las columnas del archivo:
+    cantidad_vistas = ... # Número de vistas k presentes en el dataset
+    
+    for k in range(cantidad_vistas):
+        # Extraer puntos 2D de la imagen para la vista k y puntos 3D del objeto
+        imgPts_k = ...  # Array de forma (n, 2) con (u_k, v_k)
+        objPts_k = ...  # Array de forma (n, 2 o 3) con coordenadas del plano (U, V)
         
-        # Fila correspondiente a la ecuación de la coordenada u
-        Q[2 * i, 0]   = U
-        Q[2 * i, 1]   = V
-        Q[2 * i, 2]   = W
-        Q[2 * i, 3]   = 1.0
-        Q[2 * i, 8]   = -u * U
-        Q[2 * i, 9]   = -u * V
-        Q[2 * i, 10]  = -u * W
-        Q[2 * i, 11]  = -u
+        # (Opcional recomendado) Normalización isotrópica de Hartley
+        # imgPts_norm, T_img = alc.normalizarPuntos(imgPts_k)
+        # objPts_norm, T_world = alc.normalizarPuntos(objPts_k)
         
-        # Fila correspondiente a la ecuación de la coordenada v
-        Q[2 * i + 1, 4] = U
-        Q[2 * i + 1, 5] = V
-        Q[2 * i + 1, 6] = W
-        Q[2 * i + 1, 7] = 1.0
-        Q[2 * i + 1, 8] = -v * U
-        Q[2 * i + 1, 9] = -v * V
-        Q[2 * i + 1, 10] = -v * W
-        Q[2 * i + 1, 11] = -v
+        # A. Construir la matriz Q_2d para la vista k usando la función del módulo alc
+        Q_k = alc.obtenerQ2d(imgPts_k, objPts_k)
         
-    return Q
-
-def resolverDLT3D(Q):
-    """
-    Resuelve el sistema Qm = 0 mediante mínimos cuadrados homogéneos 
-    utilizando la descomposición SVD implementada en el laboratorio/módulo ALC.
-    El vector m solución corresponde al autovector asociado al menor autovalor de Q^T Q.
-    """
-    # Q^T Q se calcula usando nuestra función matricial permitida
-    QT_Q = multiplicar_matrices(Q.T, Q)
-    
-    # Obtenemos los autovalores y autovectores (usando SVD sobre Q ya que SVD(Q) nos da V^T)
-    # Nota: Se utiliza la descomposición SVD propia del módulo ALC.
-    U_svd, S_svd, Vt_svd = np.linalg.svd(Q) # O la función SVD propia de ALC
-    
-    # El vector m es la última fila de V^T (columna de V correspondiente al menor valor singular)
-    m = Vt_svd[-1, :]
-    
-    # Reconstruimos la matriz de proyección M de 3x4
-    M = m.reshape(3, 4)
-    return M
-
-def devolverMatricesCalibracion3d(M):
-    """
-    Descompone la matriz de proyección M (3x4) en los parámetros intrínsecos K,
-    la matriz de rotación R y el vector de traslación t, imponiendo ortonormalidad en R.
-    """
-    # Extraemos la submatriz M_3x3 (primeras 3 columnas) y el vector M_col4
-    M_3x3 = M[:, :3]
-    M_col4 = M[:, 3:4]
-    
-    # Factorización QR (o LQ) analítica para separar K y R
-    # Como R debe ser ortogonal y K triangular superior, aplicamos QR a M_3x3 invertida o similar,
-    # asegurando que los elementos diagonales de K sean positivos.
-    # (Implementación estándar vista en el laboratorio ALC)
-    
-    # [Implementación detallada de descomposición QR propia de ALC...]
-    # Retorna R (3x3), t (3,1), K (3x3)
-    pass
-
-def calcular_velocidad_agente(puntos_trayectoria_uv, timestamps, H_inv, K):
-    """
-    Calcula la velocidad real de un agente (vehículo o peatón) en m/s a partir
-    de una secuencia de posiciones en la imagen (u, v) y sus tiempos asociados.
-    
-    Pasos:
-    1. Proyecta cada punto (u, v) del plano imagen al plano real (U, V) usando H_inv.
-    2. Calcula la distancia euclídea real recorrida entre frames consecutivos.
-    3. Divide la distancia total o incremental por el diferencial de tiempo dt.
-    """
-    distancias_reales = []
-    
-    for i in range(len(puntos_trayectoria_uv) - 1):
-        p1_uv = puntos_trayectoria_uv[i]
-        p2_uv = puntos_trayectoria_uv[i+1]
+        # B. Resolver H_hat mediante SVD (tomando la última fila de V^T / última columna de V)
+        # _, _, Vt = alc.svd(Q_k)  # O la función de SVD implementada en alc.py
+        # h = Vt[-1, :]
+        # H_hat = h.reshape(3, 3)
         
-        # Convertir a coordenadas homogéneas de imagen
-        pt1_h = np.array([p1_uv[0], p1_uv[1], 1.0], dtype=np.float32)
-        pt2_h = np.array([p2_uv[0], p2_uv[1], 1.0], dtype=np.float32)
+        # C. Desnormalizar si se aplicó Hartley: H_k = T_img_inv @ H_hat @ T_world
+        # H_k = ...
         
-        # Mapeo al plano real usando la homografía inversa o proyección con Z=0
-        # P_real = H_inv @ pt_h (multiplicando sin @)
-        pt1_real = multiplicar_matrices(H_inv, pt1_h[:, np.newaxis])
-        pt1_real = pt1_real / pt1_real[2, 0] # Normalizar coordenada homogénea
+        # Guardar la homografía en la lista
+        Hlst.append(H_k)
         
-        pt2_real = multiplicar_matrices(H_inv, pt2_h[:, np.newaxis])
-        pt2_real = pt2_real / pt2_real[2, 0]
-        
-        # Distancia euclídea en metros sobre el plano del piso
-        dx = pt2_real[0, 0] - pt1_real[0, 0]
-        dy = pt2_real[1, 0] - pt1_real[1, 0]
-        distancia = np.sqrt(dx**2 + dy**2)
-        distancias_reales.append(distancia)
-        
-    # Calcular velocidad media o instantánea
-    dt = timestamps[-1] - timestamps[0]
-    distancia_total = np.sum(distancias_reales)
+    # 2. Construcción del Sistema Global de Intrínsecos
+    # Llamamos a armarA pasándole la lista de homografías obtenidas
+    A = alc.armarA(Hlst)
     
-    velocidad_ms = distancia_total / dt if dt > 0 else 0.0
-    velocidad_kmh = velocidad_ms * 3.6 # Conversión a km/h para análisis físico
+    # 3. Cálculo de la matriz K
+    # A. Resolver Ab = 0 hallando el vector b con la SVD de A
+    # _, _, Vt_A = alc.svd(A)
+    # b = Vt_A[-1, :]
     
-    return velocidad_ms, velocidad_kmh
-
+    # B. Reconstruir la matriz simétrica B (3x3) a partir de b
+    B = np.array([
+        [b[0], b[1], b[3]],
+        [b[1], b[2], b[4]],
+        [b[3], b[4], b[5]]
+    ], dtype=np.float32)
+    
+    # C. Factorizar B = L * L^T usando la función de Cholesky de alc.py
+    L = alc.calculaCholesky(B)  # (o calcularCholesky según tu alc.py)
+    
+    # D. Obtener K = (L^T)^(-1) y normalizar dividiendo por K33
+    # Lt_inv = alc.invertirMatriz(L.T)
+    # K = alc.invertirMatriz(L.T)  # o equivalente permitido
+    # K = K / K[2, 2]            # Normalización para que K33 = 1
+    
+    return K
 #--------------------------Fin ejercicio 5-------------------------------------------------
 # Para ejercicio 6
 def pseudoinversa(A,tol=1e-10):
