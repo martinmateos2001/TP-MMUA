@@ -1,10 +1,11 @@
-from math import pi
-
 import numpy as np
 from pandas import pivot
 import pandas as pd
 # Librería de Funciones.
 def inversa(A):
+  '''
+  Retorna la matriz inversa de A.
+  '''
   L,U,cantop = calculaLU(A)
   detU = U[0,0]
   for i in range(1,U.shape[1]):
@@ -22,6 +23,11 @@ def inversa(A):
   return Ainv
 
 def res_tri(L,b,inferior=True):
+  '''
+  Recibe: Una matriz triangular $L$ (o $U$), un vector $b$, y un argumento opcional `inferior` (que por defecto es `True` 
+  para indicar que es triangular inferior, o `False` si es triangular superior).
+  Objetivo: Resuelve el sistema $Lx = b$ (o $Ux = b$), donde la matriz es triangular.
+  '''
   if inferior == False:
     y = np.zeros(b.shape)
     for i in range(L.shape[0]-1,-1,-1):
@@ -39,6 +45,9 @@ def res_tri(L,b,inferior=True):
   return y
 
 def calculaLU(A):
+  '''
+  Retorna las matrices L triangular inferior y U triangular superior que conforman la factorizacion LU de la matriz A.
+  '''
   cant_op = 0
   if A is None:
     return None,None,0
@@ -71,6 +80,22 @@ def calculaLU(A):
   return L, U, cant_op
 
 def QR_con_HH(A,tol=1e-12,extras=False):
+  '''
+  A una matriz de m x n (m>=n)
+  tol la tolerancia con la que se filtran elementos nulos en R
+  retorna matrices Q y R calculadas con reflexiones de Householder
+  Si la matriz A no cumple m>=n, debe retornar None
+  extras : bool, opcional
+  Si es True, devuelve información extra sobre el proceso de factorización.
+  Por defecto es False. Esto lo hacemos para poder graficar el proceso.
+  Devuelve la factorización QR de A usando reflectores de Householder.
+  Devuelve:
+  Q, R, extra_info (si extras es True)
+  Q, R (si extras es False)
+  extra_info es un diccionario con la clave:
+  'R_matrices': lista de las matrices R en cada paso
+  'Q_matrices': lista de las matrices Q en cada paso
+  '''
   #  A una matriz de m x n (m>=n)
   m , n= A.shape[0] , A.shape[1]
   if m>=n:
@@ -111,6 +136,9 @@ def QR_con_HH(A,tol=1e-12,extras=False):
     return None
 
 def normaExacta(A, p=[1,'inf']):
+    '''
+    Retorna la Norma-p de A con p = 1 o p = 'inf'.
+    '''
     filas = A.shape[0]
     cols = A.shape[1]
     res = 0
@@ -261,7 +289,7 @@ def diagRH(A, tol=1e-14, K=1000): # retorna S, D tq A = S @ D @ S.T
             D = np.zeros((n, n))
             Schica = np.zeros((n, n))
 
-            D[0, 0] = float(l1)
+            D[0, 0] = l1.reshape(-1)[0]
             D[1:, 1:] = Dtilde
 
             Schica[0, 0] = 1.0
@@ -378,50 +406,50 @@ def puntosfotoi(i,uv):
 # como tengo 12 puntos, mi Q sera de 2*12x12 osea 24x12
 # ahora quiero convertir mis P a Pi= [U,V,W,1]
 def convertirP(pcorners):
+  '''
+  Dada la lista de puntos de un objeto retorna los puntos modificados para implementar DLT-3D.
+  (X,Y,Z) -> (X,Y,Z,1)
+  '''
   pi = []
   for i in range(0,pcorners.shape[0]):
     pi.append(pcorners[i].tolist() + [1])
     Puntosi = np.array(pi)
   return Puntosi
 
-def nomalizacionDePuntos(imgPts, objPts):
+def normalizacionDePuntos(imgPts, objPts):
   '''
-  Dados los puntos 2D y los puntos 3D asociados, retorna ambas listas de puntos normalizadas 
-  y las matrices de normalizacion T_img y T_world
+  Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,Z,1), retorna ambas listas de puntos normalizadas 
+  y las matrices de normalizacion T_img y T_world como sigue:
+  - puntos2DNormalizados, puntos3DNormalizados, T_img, T_world
   '''
-  pts2d=np.copy(imgPts)
-  pts3d=np.copy(objPts)
+  pts2d=np.array(imgPts)
+  pts3d=np.array(objPts)
 
   # centroides 2D y 3D
-  cen2d = np.array([0,0])
-  cen3d = np.array([0,0,0])
-  n = len(imgPts)
-  for i in range(len(imgPts)):
-    cen2d += imgPts[i]
-    cen3d += objPts[i]
-  cen2d = cen2d / n
-  cen3d = cen3d / n
-
+  cen2d = np.mean(pts2d, axis=0)
+  cen3d = np.mean(pts3d[:, :3], axis=0)
+ 
+  n = len(pts2d)
   # traslacion
   for i in range(n):
     pts2d[i] -= cen2d
-    pts3d[i] -= cen3d
+    pts3d[i, :3] -= cen3d 
 
   # promedio de las distancias al origen
   prom2d = 0
   prom3d = 0
   for i in range(n):
     prom2d += normavector2(pts2d[i])
-    prom3d += normavector2(pts3d[i])
+    prom3d += normavector2(pts3d[i, :3])
   prom2d = prom2d / n
   prom3d = prom3d / n
 
   # factores de normalizacion
-  s2d = (2**(0.5)) / prom2d
-  s3d = (3**(0.5)) / prom3d
+  s2d = np.sqrt(2) / prom2d
+  s3d = np.sqrt(3) / prom3d
   for i in range(n):
     pts2d[i] = pts2d[i] * s2d
-    pts3d[i] = pts3d[i] * s3d
+    pts3d[i, :3] = pts3d[i, :3] * s3d
 
   T_img = np.array([
      [s2d, 0, -s2d * cen2d[0]],
@@ -435,7 +463,56 @@ def nomalizacionDePuntos(imgPts, objPts):
      [0, 0, s3d, -s3d * cen3d[2]],
      [0, 0, 0, 1]
   ])
+  return pts2d, pts3d, T_img, T_world
 
+def normalizacionDePuntosCop(imgPts, objPts):
+  '''
+  Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,1), retorna ambas listas de puntos normalizadas 
+  y las matrices de normalizacion T_img y T_world como sigue:
+  - puntos2DNormalizados, puntos3DNormalizados, T_img, T_world
+  Es la funcion normalizacionDePuntos pero aplicada al proceso de Calibracion por Puntos Coplanares.
+  '''
+  pts2d=np.array(imgPts)
+  pts3d=np.array(objPts)
+
+  # centroides 2D y 3D
+  cen2d = np.mean(pts2d, axis=0)
+  cen3d = np.mean(pts3d[:, :2], axis=0)
+  
+  n = len(pts2d)
+  # traslacion
+  for i in range(n):
+    pts2d[i] -= cen2d
+    pts3d[i, :2] -= cen3d 
+
+  # promedio de las distancias al origen
+  prom2d = 0
+  prom3d = 0
+  for i in range(n):
+    prom2d += normavector2(pts2d[i])
+    prom3d += normavector2(pts3d[i, :2])
+  prom2d = prom2d / n
+  prom3d = prom3d / n
+
+  # factores de normalizacion
+  s2d = np.sqrt(2) / prom2d
+  s3d = np.sqrt(2) / prom3d
+  
+  for i in range(n):
+    pts2d[i] = pts2d[i] * s2d
+    pts3d[i, :2] = pts3d[i, :2] * s3d
+
+  T_img = np.array([
+      [s2d, 0, -s2d * cen2d[0]],
+      [0, s2d, -s2d * cen2d[1]],
+      [0, 0, 1]
+  ])
+
+  T_world = np.array([
+    [s3d, 0, -s3d * cen3d[0]],
+    [0, s3d, -s3d * cen3d[1]],
+    [0, 0, 1]
+  ])
   return pts2d, pts3d, T_img, T_world
 # 2A
 def obtenerQ3d(imgPts, objPts):
@@ -528,6 +605,9 @@ def resolverQh(Q):
     return H
 
 def vijK(H, i, j):
+   '''
+   Retorna el vector que se deriva de la ecuacion <h_i, B h_j> donde se supone que B=K^{-t} K^{-1}.
+   '''
    return np.array([
     H[0,i]*H[0,j],
     H[0,i]* H[1,j] + H[1,i]*H[0,j],
@@ -592,6 +672,9 @@ def calculaLU(A):
     return L, Ac, ops
 
 def calculaLDV(A):
+    '''
+    Calcula la factorizacion LDV de A retornando L triangular inferior, D diagonal y V triangular superior.
+    '''
     LU = calculaLU(A)
     L = LU[0]
     U = LU[1]
@@ -606,6 +689,9 @@ def calculaLDV(A):
     return L, D, Uc
 
 def esSDP(A, atol=1e-5):
+    '''
+    Dada una matriz A, retorna True si a es Semidefinida Positiva y False en caso contrario.
+    '''
     n=A.shape[0]
     if(n != A.shape[1]):
         return False
@@ -667,6 +753,9 @@ def calcularMatrizK2D(A):
   return Knormalizada
 
 def productoCruz(a, b):
+  '''
+  Retorna el vector resultante del producto cruz de los vectores a y b.
+  '''
   # Aseguramos que los vectores estén desdoblados en 1D
   a = a.reshape(-1)
   b = b.reshape(-1)
@@ -1081,3 +1170,20 @@ def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
     yk = y_orig * (1 + epsilon)
 
   return Rmejor,tmejor
+
+def errorRelativoMatrizProyeccion(M, imgPts, objPts):
+  '''
+  Dada una matriz de proyeccion M, la lista de puntos 2D imgPts, la lista de puntos del objeto objPts.
+  Retorna el promedio de los errores relativos de los puntos 2D obtenidos por la matriz M.
+  '''
+  #Calculo de errores normalizando
+  errores_rel = []
+  for i in range(len(objPts)):
+      uv = imgPts[i]
+      uv_obtenido = multMat(M, objPts[i]).reshape(-1)
+      uv_obtenido = uv_obtenido[:2]/uv_obtenido[2]
+      nuv = normavector2(uv)
+      nuv_obt = normavector2(uv_obtenido)
+      err_rel = abs(nuv - nuv_obt)/ nuv
+      errores_rel.append(err_rel)
+  return np.mean(errores_rel)
