@@ -1,7 +1,5 @@
-from math import pi
-
 import numpy as np
-from pandas import pivot
+
 # Librería de Funciones.
 def inversa(A):
   L,U,cantop = calculaLU(A)
@@ -383,35 +381,36 @@ def convertirP(pcorners):
     Puntosi = np.array(pi)
   return Puntosi
 
-def nomalizacionDePuntos(imgPts, objPts):
+def normalizacionDePuntos(imgPts, objPts):
   '''
-  Dados los puntos 2D y los puntos 3D asociados, retorna ambas listas de puntos normalizadas 
-  y las matrices de normalizacion T_img y T_world
+  Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,Z,1), retorna ambas listas de puntos normalizadas 
+  y las matrices de normalizacion T_img y T_world como sigue:
+  - puntos2DNormalizados, puntos3DNormalizados, T_img, T_world
   '''
-  pts2d=np.copy(imgPts)
-  pts3d=np.copy(objPts)
+  pts2d=np.asarray(imgPts, dtype=np.float32)
+  pts3d=np.asarray(objPts, dtype=np.float32)
 
   # centroides 2D y 3D
-  cen2d = np.array([0,0])
-  cen3d = np.array([0,0,0])
+  cen2d = np.zeros(2, dtype=np.float32)
+  cen3d = np.zeros(3, dtype=np.float32)
   n = len(imgPts)
   for i in range(len(imgPts)):
-    cen2d += imgPts[i]
-    cen3d += objPts[i]
+    cen2d += pts2d[i]
+    cen3d += pts3d[i, :3]
   cen2d = cen2d / n
   cen3d = cen3d / n
 
   # traslacion
   for i in range(n):
     pts2d[i] -= cen2d
-    pts3d[i] -= cen3d
+    pts3d[i, :3] -= cen3d 
 
   # promedio de las distancias al origen
   prom2d = 0
   prom3d = 0
   for i in range(n):
     prom2d += normavector2(pts2d[i])
-    prom3d += normavector2(pts3d[i])
+    prom3d += normavector2(pts3d[i, :3])
   prom2d = prom2d / n
   prom3d = prom3d / n
 
@@ -420,7 +419,7 @@ def nomalizacionDePuntos(imgPts, objPts):
   s3d = (3**(0.5)) / prom3d
   for i in range(n):
     pts2d[i] = pts2d[i] * s2d
-    pts3d[i] = pts3d[i] * s3d
+    pts3d[i, :3] = pts3d[i, :3] * s3d
 
   T_img = np.array([
      [s2d, 0, -s2d * cen2d[0]],
