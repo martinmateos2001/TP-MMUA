@@ -288,7 +288,7 @@ def diagRH(A, tol=1e-14, K=1000): # retorna S, D tq A = S @ D @ S.T
             D = np.zeros((n, n))
             Schica = np.zeros((n, n))
 
-            D[0, 0] = float(l1)
+            D[0, 0] = l1.reshape(-1)[0]
             D[1:, 1:] = Dtilde
 
             Schica[0, 0] = 1.0
