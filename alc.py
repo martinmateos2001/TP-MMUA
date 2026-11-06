@@ -2,6 +2,9 @@ import numpy as np
 
 # Librería de Funciones.
 def inversa(A):
+  '''
+  Retorna la matriz inversa de A.
+  '''
   L,U,cantop = calculaLU(A)
   detU = U[0,0]
   for i in range(1,U.shape[1]):
@@ -19,6 +22,11 @@ def inversa(A):
   return Ainv
 
 def res_tri(L,b,inferior=True):
+  '''
+  Recibe: Una matriz triangular $L$ (o $U$), un vector $b$, y un argumento opcional `inferior` (que por defecto es `True` 
+  para indicar que es triangular inferior, o `False` si es triangular superior).
+  Objetivo: Resuelve el sistema $Lx = b$ (o $Ux = b$), donde la matriz es triangular.
+  '''
   if inferior == False:
     y = np.zeros(b.shape)
     for i in range(L.shape[0]-1,-1,-1):
@@ -36,6 +44,9 @@ def res_tri(L,b,inferior=True):
   return y
 
 def calculaLU(A):
+  '''
+  Retorna las matrices L triangular inferior y U triangular superior que conforman la factorizacion LU de la matriz A.
+  '''
   cant_op = 0
   if A is None:
     return None,None,0
@@ -68,6 +79,22 @@ def calculaLU(A):
   return L, U, cant_op
 
 def QR_con_HH(A,tol=1e-12,extras=False):
+  '''
+  A una matriz de m x n (m>=n)
+  tol la tolerancia con la que se filtran elementos nulos en R
+  retorna matrices Q y R calculadas con reflexiones de Householder
+  Si la matriz A no cumple m>=n, debe retornar None
+  extras : bool, opcional
+  Si es True, devuelve información extra sobre el proceso de factorización.
+  Por defecto es False. Esto lo hacemos para poder graficar el proceso.
+  Devuelve la factorización QR de A usando reflectores de Householder.
+  Devuelve:
+  Q, R, extra_info (si extras es True)
+  Q, R (si extras es False)
+  extra_info es un diccionario con la clave:
+  'R_matrices': lista de las matrices R en cada paso
+  'Q_matrices': lista de las matrices Q en cada paso
+  '''
   #  A una matriz de m x n (m>=n)
   m , n= A.shape[0] , A.shape[1]
   if m>=n:
@@ -108,6 +135,9 @@ def QR_con_HH(A,tol=1e-12,extras=False):
     return None
 
 def normaExacta(A, p=[1,'inf']):
+    '''
+    Retorna la Norma-p de A con p = 1 o p = 'inf'.
+    '''
     filas = A.shape[0]
     cols = A.shape[1]
     res = 0
@@ -375,6 +405,10 @@ def puntosfotoi(i,uv):
 # como tengo 12 puntos, mi Q sera de 2*12x12 osea 24x12
 # ahora quiero convertir mis P a Pi= [U,V,W,1]
 def convertirP(pcorners):
+  '''
+  Dada la lista de puntos de un objeto retorna los puntos modificados para implementar DLT-3D.
+  (X,Y,Z) -> (X,Y,Z,1)
+  '''
   pi = []
   for i in range(0,pcorners.shape[0]):
     pi.append(pcorners[i].tolist() + [1])
@@ -431,6 +465,12 @@ def normalizacionDePuntos(imgPts, objPts):
   return pts2d, pts3d, T_img, T_world
 
 def normalizacionDePuntosCop(imgPts, objPts):
+  '''
+  Dados los puntos 2D (u,v) y los puntos 3D asociados (X,Y,1), retorna ambas listas de puntos normalizadas 
+  y las matrices de normalizacion T_img y T_world como sigue:
+  - puntos2DNormalizados, puntos3DNormalizados, T_img, T_world
+  Es la funcion normalizacionDePuntos pero aplicada al proceso de Calibracion por Puntos Coplanares.
+  '''
   pts2d=np.array(imgPts)
   pts3d=np.array(objPts)
 
@@ -564,6 +604,9 @@ def resolverQh(Q):
     return H
 
 def vijK(H, i, j):
+   '''
+   Retorna el vector que se deriva de la ecuacion <h_i, B h_j> donde se supone que B=K^{-t} K^{-1}.
+   '''
    return np.array([
     H[0,i]*H[0,j],
     H[0,i]* H[1,j] + H[1,i]*H[0,j],
@@ -628,6 +671,9 @@ def calculaLU(A):
     return L, Ac, ops
 
 def calculaLDV(A):
+    '''
+    Calcula la factorizacion LDV de A retornando L triangular inferior, D diagonal y V triangular superior.
+    '''
     LU = calculaLU(A)
     L = LU[0]
     U = LU[1]
@@ -642,6 +688,9 @@ def calculaLDV(A):
     return L, D, Uc
 
 def esSDP(A, atol=1e-5):
+    '''
+    Dada una matriz A, retorna True si a es Semidefinida Positiva y False en caso contrario.
+    '''
     n=A.shape[0]
     if(n != A.shape[1]):
         return False
@@ -703,6 +752,9 @@ def calcularMatrizK2D(A):
   return Knormalizada
 
 def productoCruz(a, b):
+  '''
+  Retorna el vector resultante del producto cruz de los vectores a y b.
+  '''
   # Aseguramos que los vectores estén desdoblados en 1D
   a = a.reshape(-1)
   b = b.reshape(-1)
