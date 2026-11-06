@@ -387,19 +387,14 @@ def normalizacionDePuntos(imgPts, objPts):
   y las matrices de normalizacion T_img y T_world como sigue:
   - puntos2DNormalizados, puntos3DNormalizados, T_img, T_world
   '''
-  pts2d=np.asarray(imgPts, dtype=np.float32)
-  pts3d=np.asarray(objPts, dtype=np.float32)
+  pts2d=np.array(imgPts)
+  pts3d=np.array(objPts)
 
   # centroides 2D y 3D
-  cen2d = np.zeros(2, dtype=np.float32)
-  cen3d = np.zeros(3, dtype=np.float32)
-  n = len(imgPts)
-  for i in range(len(imgPts)):
-    cen2d += pts2d[i]
-    cen3d += pts3d[i, :3]
-  cen2d = cen2d / n
-  cen3d = cen3d / n
-
+  cen2d = np.mean(pts2d, axis=0)
+  cen3d = np.mean(pts3d[:, :3], axis=0)
+ 
+  n = len(pts2d)
   # traslacion
   for i in range(n):
     pts2d[i] -= cen2d
@@ -415,8 +410,8 @@ def normalizacionDePuntos(imgPts, objPts):
   prom3d = prom3d / n
 
   # factores de normalizacion
-  s2d = (2**(0.5)) / prom2d
-  s3d = (3**(0.5)) / prom3d
+  s2d = np.sqrt(2) / prom2d
+  s3d = np.sqrt(3) / prom3d
   for i in range(n):
     pts2d[i] = pts2d[i] * s2d
     pts3d[i, :3] = pts3d[i, :3] * s3d
