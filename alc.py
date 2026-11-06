@@ -833,7 +833,7 @@ def det(matriz):
             A[j,i + 1:] -= multiplicador * A[i, i+1:]
             A[j, i] = np.float32(0)
     return res * signo
-#--------------------------Ejercicio 5 (hecho por chatgpt, en proceso de chequeo)-------------------
+#--------------------------Ejercicio 5 (armando el csv)-------------------
 
 #empiezo la calibracion
 def resolver_ejercicio_5a(csv_path):
