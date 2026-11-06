@@ -1,5 +1,6 @@
 import numpy as np
-
+from pandas import pivot
+import pandas as pd
 # Librería de Funciones.
 def inversa(A):
   '''
@@ -832,7 +833,105 @@ def det(matriz):
             A[j,i + 1:] -= multiplicador * A[i, i+1:]
             A[j, i] = np.float32(0)
     return res * signo
+#--------------------------Ejercicio 5 (hecho por chatgpt, en proceso de chequeo)-------------------
 
+#empiezo la calibracion
+def resolver_ejercicio_5a(csv_path):
+    # importop el csv
+    df = pd.read_csv(csv_path, sep=';')
+    
+    # Sé que mis puntos del mundo (X, Y) son exactamente 5 filas
+    puntos_mundo_xy = df[['X', 'Y']].values  # Matriz (5, 2)
+    puntos_mundo_homog = np.hstack([puntos_mundo_xy, np.ones((5, 1))])  # Matriz (5, 3)
+    
+    lista_homografias = []
+  
+    for k in range(4):
+        puntos_imagen_k = df[[f'u_{k}', f'v_{k}']].values.astype(np.float32)  # Matriz (5, 2)
+        
+        # Normalizo mis 5 puntos coplanares
+        img_norm, mundo_norm, t_img, t_mundo = alc.normalizacionDePuntosCop(puntos_imagen_k, puntos_mundo_homog)
+        
+        # Armo la Q de 10x9 para estos 5 puntos y saco la homografía
+        q_vista = alc.obtenerQ2d(img_norm, mundo_norm)
+        h_hat = alc.resolverQh(q_vista)
+        
+        # Desnormalizo con las matrices T
+        t_img_inv = alc.inversa(t_img)
+        h_k = alc.multMat(alc.multMat(t_img_inv, h_hat), t_mundo)
+        lista_homografias.append(h_k)
+        
+    # Armo la matriz global A de 8x6 con las 4 homografías
+    matriz_a = alc.armarA(lista_homografias)
+    
+    # Saco la K definitiva
+    matriz_k = alc.calcularMatrizK2D(matriz_a)
+    return matriz_k
+
+
+# INCISO B
+
+def resolver_ejercicio_5b(txt_path, matriz_k):
+    # Leo el archivo con los 51 puntos fijos
+    datos = np.loadtxt(txt_path)
+    
+    x = datos[1, :]
+    y = datos[2, :]
+    z = datos[3, :]
+    u = datos[4, :]
+    v = datos[5, :]
+    
+    vectores_3d = np.stack([x, y, z], axis=-1)  # Matriz (51, 3)
+    vectores_2d = np.stack([u, v], axis=-1)    # Matriz (51, 2)
+    
+    # Uso POSIT con estos 51 puntos exactos
+    rotacion_r, traslacion_t = alc.aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
+    
+    # Evalúo la pose
+    validos, rms = alc.evaluarPose(rotacion_r, traslacion_t, vectores_3d, vectores_2d, matriz_k)
+    print(f"[Inciso B] Me dieron {validos} puntos válidos de 51 y el RMS cerró en {rms:.4f} px.")
+    
+    return rotacion_r, traslacion_t
+
+
+def calcular_velocidad(trayectoria_pixeles, tiempos, matriz_k, rotacion_r, traslacion_t):
+    # Armo la proyección y bajo al plano del piso Z=0 directamente con las columnas 0, 1 y 3
+    rt = np.hstack([rotacion_r, traslacion_t])
+    proyeccion = alc.multMat(matriz_k, rt)
+    
+    homografia_suelo = np.array([
+        [proyeccion[0, 0], proyeccion[0, 1], proyeccion[0, 3]],
+        [proyeccion[1, 0], proyeccion[1, 1], proyeccion[1, 3]],
+        [proyeccion[2, 0], proyeccion[2, 1], proyeccion[2, 3]]
+    ], dtype=np.float32)
+    
+    h_inversa = alc.inversa(homografia_suelo)
+    
+    metros_recorridos = []
+    for i in range(len(trayectoria_pixeles) - 1):
+        p1 = np.array([trayectoria_pixeles[i][0], trayectoria_pixeles[i][1], 1.0], dtype=np.float32)
+        p2 = np.array([trayectoria_pixeles[i+1][0], trayectoria_pixeles[i+1][1], 1.0], dtype=np.float32)
+        
+        real_1 = alc.multMat(h_inversa, p1.reshape(3, 1))
+        real_1 = real_1 / real_1[2, 0]
+        
+        real_2 = alc.multMat(h_inversa, p2.reshape(3, 1))
+        real_2 = real_2 / real_2[2, 0]
+        
+        dx = real_2[0, 0] - real_1[0, 0]
+        dy = real_2[1, 0] - real_1[1, 0]
+        metros_recorridos.append(np.sqrt(dx**2 + dy**2))
+        
+    tiempo_total = tiempos[-1] - tiempos[0]
+    distancia_total = np.sum(metros_recorridos)
+    
+    vel_ms = distancia_total / tiempo_total if tiempo_total > 0 else 0.0
+    vel_kmh = vel_ms * 3.6
+    
+    return vel_ms, vel_kmh
+
+
+#--------------------------Fin ejercicio 5-------------------------------------------------
 # Para ejercicio 6
 def pseudoinversa(A,tol=1e-10):
   """ calcula la pseudoinversa a partir de svd reducida"""
