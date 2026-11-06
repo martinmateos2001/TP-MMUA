@@ -744,3 +744,241 @@ def det(matriz):
             A[j, i] = np.float32(0)
     return res * signo
 
+# Para ejercicio 6
+def pseudoinversa(A,tol=1e-10):
+  """ calcula la pseudoinversa a partir de svd reducida"""
+  U,S,V = svd_reducida(A)
+  for i in range(len(S)):
+    if S[i]>tol: # si no es nulo lo invierto haciendo 1/S[i]
+      S[i] = 1 / S[i]
+
+  Sinv = np.diag(S) # Creo la matriz diagonal pues recordemos mi svd me devuelve en forma de lista los valores singulares.
+  Apinv = multMat(multMat(V,Sinv),U.T) # Como mi SVD reducida devuelve V en vez de Vt, no tengo que trasponerla
+
+  return Apinv
+
+
+
+
+def calculoLambdaMu(I0,J0):
+  """
+    Parametros:
+        I0,J0 Vectores de proyección ortografica parciales en los ejes horizontal y vertical de la camara
+        I0: Array 2D [I0x, I0y].
+        J0: Array 2D [J0x, J0y].
+    Retorna:
+        lambda1: Solucion para Iz (componente Z del vector I).
+        mu1: Solucion para Jz (componente Z del vector J).
+        lambda2: Segunda Iz (-lambda1).
+        mu2: Segunda Jz (-mu1).
+    """
+  # Calculo normas
+  normasqI0 = normavector2(I0**2)
+  normasqJ0 = normavector2(J0**2)
+  puntoI0J0 = productoPunto(I0,J0)
+
+  real = normasqJ0 - normasqI0
+  imag = -2 * puntoI0J0
+  # R es el modulo
+  R = np.sqrt(real**2+imag**2)
+
+  lambda1 = np.sqrt((R+real)/2)
+  mu_abs = np.sqrt((R-real)/2)
+
+  if imag>=0: # El signo de mu1 se ve con el signo original de la parte imaginaria.
+    mu1 = mu_abs
+  else:
+    mu1 = -mu_abs
+
+  lambda2 = -lambda1
+  mu2 = - mu1
+  """
+  Si se puede usar complex entonces
+  C2 = complex(real,imag)
+  C1 = np.sqrt(C2)
+
+  lambda1 = C1.real
+  lamba2 = -lambda1
+
+  mu1 = C1.imag
+  mu2 = -mu1
+  """
+  return lambda1,lambda2,mu1,mu2
+
+
+
+
+
+def calcularSalidaPOSIT(Is, Js, fx, m0, M0):
+  """
+  Parametros:
+      Is: Vector 3D [I0x, I0y, lambda].
+      Js: Vector 3D [J0x, J0y, mu].
+      fx: Distancia focal en x (K[0,0]).
+      m0: Array/lista 2D con la posicion centrada [x0, y0].
+      M0: Array/lista 3D con la posicion del objeto [U0, V0, W0].
+  Retorna:
+      R: Matriz de rotacion (3x3).
+      t: Vector de traslacion (3x1).
+      Z0: Profundidad numero
+  """
+  normaI = normavector2(Is)
+  normaJ = normavector2(Js)
+  escala = (normaI+normaJ)/2 # podria usar tanto la norma de I como la norma de J en teoria pero tomo el promedio
+
+  Z0 = fx/escala
+
+  inormalizado = Is / normaI
+  jnormalizado = Js / normaJ
+  k = productoCruz(inormalizado,jnormalizado)
+  irow = inormalizado.reshape(3)
+  jrow = jnormalizado.reshape(3)
+  krow = k.reshape(3)
+
+  R = np.array([irow,jrow,krow])
+
+  x0,y0 = m0[0],m0[1] # es lo mismo nomas lo desempaqueto para poder leer mejor que son
+
+  tx = (x0 * Z0) / fx
+  ty = (y0 * Z0) / fx
+  tz = Z0
+
+  T = np.array([tx,ty,tz])
+  t = T.reshape(3,1) - multMat(R,M0.reshape(3,1))
+  # Retornamos la pose con R,t, y la profundidad con Z0
+  return R,t,Z0
+
+
+
+
+
+def evaluarPose(R, t, obj_vecs, img_vecs, K):
+  """
+  Parametros:
+      R : Matriz de rotacion de 3x3.
+      t : Vector de traslacion de 3x1 o 1D de 3 elementos.
+      obj_vecs : Matriz de Nx3 con puntos 3D del objeto (metros).
+      img_vecs : Matriz de Nx2 con posiciones observadas (pixeles).
+      K : Matriz de calibracion intrinseca de 3x3.
+  Retorna:
+      cant_validos (int): Numero de puntos proyectados con Zc > 0.
+      rms (float): Error RMS de reproyeccion en pixeles.
+  """
+  cantvalidos = 0
+  sumaErrores = 0
+
+  cantPuntos = len(obj_vecs)
+  for i in range(0,cantPuntos):
+    Mi = obj_vecs[i] # los que me dieron puntos reales.
+    mi = img_vecs[i] # estos es los pixeles
+    Pcam = np.array([multMat(R,Mi)]) + t
+    Pcam = Pcam.reshape(-1)
+    Zi = Pcam[2]
+    if Zi > 0:
+      cantvalidos+=1
+
+      Kp = multMat(K,Pcam)
+
+      x_proy = Kp[0] / Zi # dividimos por la profundidad
+      y_proy = Kp[1] / Zi # dividimos por la profundidad
+
+      dx = x_proy - mi[0] # diferencia entre el proyectado y el observado
+      dy = y_proy - mi[1]
+
+      sumaErrores += dx**2 + dy**2
+
+  if cantvalidos > 0:
+    rms = np.sqrt(sumaErrores/cantvalidos)
+  else:
+    rms = None
+  return cantvalidos, rms
+
+
+
+def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
+  """
+  Parametros:
+      obj_vecs : Matriz Nx3 de puntos 3D reales del objeto.
+      img_vecs : Matriz Nx2 de coordenadas de pixel originales (u,v).
+      K : Matriz de calibracion intrinseca de 3x3.
+      MaxIt : Numero maximo de iteraciones.
+      atol : Tolerancia absoluta para la diferencia del RMS entre
+        iteraciones.
+
+  Retorna:
+      R : Matriz de rotacion final de 3x3.
+      t : Vector de traslacion final de 3x1.
+  """
+  # Parametros de K
+  fx = K[0, 0]
+  cu, cv = K[0, 2], K[1, 2]
+  # Coordenadas centradas iniciales
+  x_orig = img_vecs[:, 0] - cu
+  y_orig = img_vecs[:, 1] - cv
+
+  # Punto de referencia M0 (primer punto 3D) y m0 (su proyección 2D centrada)
+  m0 = np.array([x_orig[0], y_orig[0]])
+  M0 = obj_vecs[0]
+
+  # Pseudoinversa de los puntos 3D del objeto (constante en todas las iteraciones)
+  B = pseudoinversa(obj_vecs)
+  # Vectores x y que se van ajustando con cada iteracion
+  xk = x_orig.copy()
+  yk = y_orig.copy()
+  rmsPrevio = 0
+
+  Rmejor, tmejor = None,None
+
+  for i in range(0,MaxIt):
+    Ik = multMat(B,xk)
+    Jk = multMat(B,yk)
+    # Obtener las dos raices de lambda y mu
+    l1,l2,mu1,mu2 = calculoLambdaMu(Ik,Jk)
+    # Formar vectores Is y Js para ambas ramas
+    Is1 = np.array([Ik[0], Ik[1], l1])
+    Js1 = np.array([Jk[0], Jk[1], mu1])
+
+    Is2 = np.array([Ik[0], Ik[1], l2])
+    Js2 = np.array([Jk[0], Jk[1], mu2])
+
+    # Calcular las dos poses posibles
+    R1, t1, Z01 = calcularSalidaPOSIT(Is1, Js1, fx, m0, M0)
+    R2, t2, Z02 = calcularSalidaPOSIT(Is2, Js2, fx, m0, M0)
+
+    # Evaluar ambas poses con los pixeles originales
+    val1, rms1 = evaluarPose(R1, t1, obj_vecs, img_vecs, K)
+    val2, rms2 = evaluarPose(R2, t2, obj_vecs, img_vecs, K)
+
+    # Seleccionar la rama con mayor cantidad de puntos validos o menor RMS
+    if val1 > val2:
+      Rk, tk, Z0k, rmsk = R1, t1, Z01, rms1
+    elif val2 > val1:
+      Rk, tk, Z0k, rmsk = R2, t2, Z02, rms2
+    else:
+      # Si ambas tienen los mismos puntos validos, elegir la de menor RMS
+      if rms1 <= rms2:
+        Rk, tk, Z0k, rmsk = R1, t1, Z01, rms1
+      else:
+        Rk, tk, Z0k, rmsk = R2, t2, Z02, rms2
+
+    Rmejor, tmejor = Rk, tk
+
+    # Aca frenamos por convergencia si la diferencia entre el RMS anterior y el actual es muy chiquita.
+    diferenciaRMS = abs(rmsPrevio - rmsk)
+    if diferenciaRMS < atol:
+      break
+    # Si no es el caso entonces seguimos.
+    rmsPrevio = rmsk
+
+    # Actualización de factores de corrección de perspectiva epsilon
+    R3 = Rk[2, :]  # Tercera fila de la matriz de rotación (eje Z)
+    epsilon = np.zeros(len(obj_vecs))
+
+    for i in range(0,len(obj_vecs)):
+      Z0k = Z0k.reshape(()) # tengo que hacer esto pues mi Z0k era una lista de un numero y se bugeaba. sino se podia usar tambien [0]
+      epsilon[i] = productoPunto(R3, obj_vecs[i]) / Z0k
+    # Corrección de los píxeles centrados para la siguiente iteración
+    xk = x_orig * (1 + epsilon)
+    yk = y_orig * (1 + epsilon)
+
+  return Rmejor,tmejor
