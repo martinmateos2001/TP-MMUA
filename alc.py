@@ -746,114 +746,100 @@ def det(matriz):
     return res * signo
 #--------------------------Ejercicio 5 (hecho por chatgpt, en proceso de chequeo)-------------------
 
-import numpy as np
-import pandas as pd
-import alc
-import os
-
-# ==============================================================================
-# INCISO A: Calibrando la cámara con el método de Zhang (puntos coplanares)
-# ==============================================================================
+#empiezo la calibracion
 def resolver_ejercicio_5a(csv_path):
-    # Me traigo el CSV con los puntos y las vistas
-    tabla_puntos = pd.read_csv(csv_path, sep=';')
+    # importop el csv
+    df = pd.read_csv(csv_path, sep=';')
     
-    # Armo las coordenadas del plano en el mundo (X e Y) y les meto la columna de 1s
-    puntos_mundo_base = tabla_puntos[['X', 'Y']].values
-    puntos_mundo_homog = np.hstack([puntos_mundo_base, np.ones((puntos_mundo_base.shape[0], 1))])
+    # Sé que mis puntos del mundo (X, Y) son exactamente 5 filas
+    puntos_mundo_xy = df[['X', 'Y']].values  # Matriz (5, 2)
+    puntos_mundo_homog = np.hstack([puntos_mundo_xy, np.ones((5, 1))])  # Matriz (5, 3)
     
     lista_homografias = []
-    total_vistas = 4  # Son 4 vistas (v_0, v_1, v_2, v_3)
+  
+    for k in range(4):
+        puntos_imagen_k = df[[f'u_{k}', f'v_{k}']].values.astype(np.float32)  # Matriz (5, 2)
+        
+        # Normalizo mis 5 puntos coplanares
+        img_norm, mundo_norm, t_img, t_mundo = alc.normalizacionDePuntosCop(puntos_imagen_k, puntos_mundo_homog)
+        
+        # Armo la Q de 10x9 para estos 5 puntos y saco la homografía
+        q_vista = alc.obtenerQ2d(img_norm, mundo_norm)
+        h_hat = alc.resolverQh(q_vista)
+        
+        # Desnormalizo con las matrices T
+        t_img_inv = alc.inversa(t_img)
+        h_k = alc.multMat(alc.multMat(t_img_inv, h_hat), t_mundo)
+        lista_homografias.append(h_k)
+        
+    # Armo la matriz global A de 8x6 con las 4 homografías
+    matriz_a = alc.armarA(lista_homografias)
     
-    for k in range(total_vistas):
-        # Levanto los píxeles (u, v) de la vista actual k
-        puntos_imagen_k = tabla_puntos[[f'u_{k}', f'v_{k}']].values.astype(np.float32)
-        
-        # Normalizo los puntos como vimos en clase para que no explote numéricamente
-        img_norm, mundo_norm, t_imagen, t_mundo = alc.normalizacionDePuntosCop(puntos_imagen_k, puntos_mundo_homog)
-        
-        # Saco la matriz Q para esta vista y calculo su homografía
-        matriz_q_vista = alc.obtenerQ2d(img_norm, mundo_norm)
-        h_normalizada = alc.resolverQh(matriz_q_vista)
-        
-        # Desnormalizo la homografía para llevarla a las coordenadas posta
-        t_imagen_inv = alc.inversa(t_imagen)
-        homografia_k = alc.multMat(alc.multMat(t_imagen_inv, h_normalizada), t_mundo)
-        lista_homografias.append(homografia_k)
-        
-    # Armo la matriz global A con todas las homografías juntas
-    matriz_a_global = alc.armarA(lista_homografias)
-    
-    # Resuelvo el sistema para sacar la matriz de intrínsecos K normalizada
-    matriz_k = calcularMatrizK2D(matriz_a_global) # o alc.calcularMatrizK2D(matriz_a_global)
+    # Saco la K definitiva
+    matriz_k = alc.calcularMatrizK2D(matriz_a)
     return matriz_k
 
 
-# ==============================================================================
-# INCISO B: Estimando la pose con POSIT y mirando cómo reproyecta
-# ==============================================================================
+# INCISO B
+
 def resolver_ejercicio_5b(txt_path, matriz_k):
-    # Leo el archivo con las correspondencias de los 51 puntos
-    datos_pos = np.loadtxt(txt_path)
-    coord_x, coord_y, coord_z = datos_pos[1, :], datos_pos[2, :], datos_pos[3, :]
-    pixel_u, pixel_v = datos_pos[4, :], datos_pos[5, :]
+    # Leo el archivo con los 51 puntos fijos
+    datos = np.loadtxt(txt_path)
     
-    vectores_3d = np.stack([coord_x, coord_y, coord_z], axis=-1)
-    vectores_2d = np.stack([pixel_u, pixel_v], axis=-1)
+    x = datos[1, :]
+    y = datos[2, :]
+    z = datos[3, :]
+    u = datos[4, :]
+    v = datos[5, :]
     
-    # Tiro POSIT para sacar la rotación y traslación de la cámara
-    matriz_r, vector_t = alc.aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
+    vectores_3d = np.stack([x, y, z], axis=-1)  # Matriz (51, 3)
+    vectores_2d = np.stack([u, v], axis=-1)    # Matriz (51, 2)
     
-    # Chequeo cuántos puntos quedaron adelante de la cámara y cuál es el error RMS
-    puntos_ok, error_rms = alc.evaluarPose(matriz_r, vector_t, vectores_3d, vectores_2d, matriz_k)
+    # Uso POSIT con estos 51 puntos exactos
+    rotacion_r, traslacion_t = alc.aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
     
-    print(f"[Inciso B] Me quedaron {puntos_ok}/51 puntos válidos | El error RMS dio: {error_rms:.4f} px")
-    return matriz_r, vector_t
+    # Evalúo la pose
+    validos, rms = alc.evaluarPose(rotacion_r, traslacion_t, vectores_3d, vectores_2d, matriz_k)
+    print(f"[Inciso B] Me dieron {validos} puntos válidos de 51 y el RMS cerró en {rms:.4f} px.")
+    
+    return rotacion_r, traslacion_t
 
 
-# ==============================================================================
-# INCISO C: Midiendo la velocidad real de los autos y la peatona
-# ==============================================================================
-def calcular_velocidad_agente(trayectoria_pixeles, lista_tiempos, matriz_k, matriz_r, vector_t):
-    # Armo la matriz de proyección global P combinando extrínsecos e intrínsecos
-    matriz_rt = np.hstack([matriz_r, vector_t])
-    matriz_proyeccion = alc.multMat(matriz_k, matriz_rt)
+def calcular_velocidad(trayectoria_pixeles, tiempos, matriz_k, rotacion_r, traslacion_t):
+    # Armo la proyección y bajo al plano del piso Z=0 directamente con las columnas 0, 1 y 3
+    rt = np.hstack([rotacion_r, traslacion_t])
+    proyeccion = alc.multMat(matriz_k, rt)
     
-    # Como los objetos van por el piso (Z=0), extraigo la homografía del plano del suelo
-    homografia_piso = np.array([
-        [matriz_proyeccion[0, 0], matriz_proyeccion[0, 1], matriz_proyeccion[0, 3]],
-        [matriz_proyeccion[1, 0], matriz_proyeccion[1, 1], matriz_proyeccion[1, 3]],
-        [matriz_proyeccion[2, 0], matriz_proyeccion[2, 1], matriz_proyeccion[2, 3]]
+    homografia_suelo = np.array([
+        [proyeccion[0, 0], proyeccion[0, 1], proyeccion[0, 3]],
+        [proyeccion[1, 0], proyeccion[1, 1], proyeccion[1, 3]],
+        [proyeccion[2, 0], proyeccion[2, 1], proyeccion[2, 3]]
     ], dtype=np.float32)
     
-    homografia_piso_inv = alc.inversa(homografia_piso)
+    h_inversa = alc.inversa(homografia_suelo)
     
-    distancias_recorridas = []
+    metros_recorridos = []
     for i in range(len(trayectoria_pixeles) - 1):
-        p1_pix = np.array([trayectoria_pixeles[i][0], trayectoria_pixeles[i][1], 1.0], dtype=np.float32)
-        p2_pix = np.array([trayectoria_pixeles[i+1][0], trayectoria_pixeles[i+1][1], 1.0], dtype=np.float32)
+        p1 = np.array([trayectoria_pixeles[i][0], trayectoria_pixeles[i][1], 1.0], dtype=np.float32)
+        p2 = np.array([trayectoria_pixeles[i+1][0], trayectoria_pixeles[i+1][1], 1.0], dtype=np.float32)
         
-        # Mapeo los píxeles a metros reales sobre el asfalto usando la inversa
-        punto1_real = alc.multMat(homografia_piso_inv, p1_pix.reshape(3, 1))
-        punto1_real = punto1_real / punto1_real[2, 0]
+        real_1 = alc.multMat(h_inversa, p1.reshape(3, 1))
+        real_1 = real_1 / real_1[2, 0]
         
-        punto2_real = alc.multMat(homografia_piso_inv, p2_pix.reshape(3, 1))
-        punto2_real = punto2_real / punto2_real[2, 0]
+        real_2 = alc.multMat(h_inversa, p2.reshape(3, 1))
+        real_2 = real_2 / real_2[2, 0]
         
-        # Saco la distancia en línea recta (en metros) entre un frame y el siguiente
-        delta_x = punto2_real[0, 0] - punto1_real[0, 0]
-        delta_y = punto2_real[1, 0] - punto1_real[1, 0]
-        distancias_recorridas.append(np.sqrt(delta_x**2 + delta_y**2))
+        dx = real_2[0, 0] - real_1[0, 0]
+        dy = real_2[1, 0] - real_1[1, 0]
+        metros_recorridos.append(np.sqrt(dx**2 + dy**2))
         
-    # Calculo el tiempo que pasó y divido espacio sobre tiempo
-    tiempo_total = lista_tiempos[-1] - lista_tiempos[0]
-    espacio_total = np.sum(distancias_recorridas)
+    tiempo_total = tiempos[-1] - tiempos[0]
+    distancia_total = np.sum(metros_recorridos)
     
-    vel_metros_seg = espacio_total / tiempo_total if tiempo_total > 0 else 0.0
-    vel_km_hora = vel_metros_seg * 3.6  # Lo paso a km/h para que tenga más sentido
+    vel_ms = distancia_total / tiempo_total if tiempo_total > 0 else 0.0
+    vel_kmh = vel_ms * 3.6
     
-    return vel_metros_seg, vel_km_hora
-
+    return vel_ms, vel_kmh
 
 
 #--------------------------Fin ejercicio 5-------------------------------------------------
