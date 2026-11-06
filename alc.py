@@ -383,7 +383,59 @@ def convertirP(pcorners):
     Puntosi = np.array(pi)
   return Puntosi
 
+def nomalizacionDePuntos(imgPts, objPts):
+  '''
+  Dados los puntos 2D y los puntos 3D asociados, retorna ambas listas de puntos normalizadas 
+  y las matrices de normalizacion T_img y T_world
+  '''
+  pts2d=np.copy(imgPts)
+  pts3d=np.copy(objPts)
 
+  # centroides 2D y 3D
+  cen2d = np.array([0,0])
+  cen3d = np.array([0,0,0])
+  n = len(imgPts)
+  for i in range(len(imgPts)):
+    cen2d += imgPts[i]
+    cen3d += objPts[i]
+  cen2d = cen2d / n
+  cen3d = cen3d / n
+
+  # traslacion
+  for i in range(n):
+    pts2d[i] -= cen2d
+    pts3d[i] -= cen3d
+
+  # promedio de las distancias al origen
+  prom2d = 0
+  prom3d = 0
+  for i in range(n):
+    prom2d += normavector2(pts2d[i])
+    prom3d += normavector2(pts3d[i])
+  prom2d = prom2d / n
+  prom3d = prom3d / n
+
+  # factores de normalizacion
+  s2d = (2**(0.5)) / prom2d
+  s3d = (3**(0.5)) / prom3d
+  for i in range(n):
+    pts2d[i] = pts2d[i] * s2d
+    pts3d[i] = pts3d[i] * s3d
+
+  T_img = np.array([
+     [s2d, 0, -s2d * cen2d[0]],
+     [0, s2d, -s2d * cen2d[1]],
+     [0, 0, 1]
+  ])
+
+  T_world = np.array([
+     [s3d, 0, 0, -s3d * cen3d[0]],
+     [0, s3d, 0, -s3d * cen3d[1]],
+     [0, 0, s3d, -s3d * cen3d[2]],
+     [0, 0, 0, 1]
+  ])
+
+  return pts2d, pts3d, T_img, T_world
 # 2A
 def obtenerQ3d(imgPts, objPts):
   '''
