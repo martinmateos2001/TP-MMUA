@@ -891,10 +891,6 @@ def resolver_ejercicio_5b(txt_path, matriz_k):
     # Uso POSIT con estos 51 puntos exactos
     rotacion_r, traslacion_t = alc.aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
     
-    # Evalúo la pose
-    validos, rms = alc.evaluarPose(rotacion_r, traslacion_t, vectores_3d, vectores_2d, matriz_k)
-    print(f"[Inciso B] Me dieron {validos} puntos válidos de 51 y el RMS cerró en {rms:.4f} px.")
-    
     return rotacion_r, traslacion_t
 
 
