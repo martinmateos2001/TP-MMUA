@@ -854,22 +854,22 @@ def resolver_ejercicio_5a(csv_path):
         puntos_imagen_k = df[[f'u_{k}', f'v_{k}']].values.astype(np.float32)  # Matriz (5, 2)
         
         # Normalizo mis 5 puntos coplanares
-        img_norm, mundo_norm, t_img, t_mundo = alc.normalizacionDePuntosCop(puntos_imagen_k, puntos_mundo_homog)
+        img_norm, mundo_norm, t_img, t_mundo = normalizacionDePuntosCop(puntos_imagen_k, puntos_mundo_homog)
         
         # Armo la Q de 10x9 para estos 5 puntos y saco la homografía
-        q_vista = alc.obtenerQ2d(img_norm, mundo_norm)
-        h_hat = alc.resolverQh(q_vista)
+        q_vista = obtenerQ2d(img_norm, mundo_norm)
+        h_hat = resolverQh(q_vista)
         
         # Desnormalizo con las matrices T
-        t_img_inv = alc.inversa(t_img)
-        h_k = alc.multMat(alc.multMat(t_img_inv, h_hat), t_mundo)
+        t_img_inv = inversa(t_img)
+        h_k = multMat(multMat(t_img_inv, h_hat), t_mundo)
         lista_homografias.append(h_k)
         
     # Armo la matriz global A de 8x6 con las 4 homografías
-    matriz_a = alc.armarA(lista_homografias)
+    matriz_a = armarA(lista_homografias)
     
     # Saco la K definitiva
-    matriz_k = alc.calcularMatrizK2D(matriz_a)
+    matriz_k = calcularMatrizK2D(matriz_a)
     return matriz_k
 
 
@@ -889,10 +889,10 @@ def resolver_ejercicio_5b(txt_path, matriz_k):
     vectores_2d = np.stack([u, v], axis=-1)    # Matriz (51, 2)
     
     # Uso POSIT con estos 51 puntos exactos
-    rotacion_r, traslacion_t = alc.aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
+    rotacion_r, traslacion_t = aplicarPOSIT(vectores_3d, vectores_2d, matriz_k, MaxIt=50, atol=1e-5)
     
     # Evalúo la pose
-    validos, rms = alc.evaluarPose(rotacion_r, traslacion_t, vectores_3d, vectores_2d, matriz_k)
+    validos, rms = evaluarPose(rotacion_r, traslacion_t, vectores_3d, vectores_2d, matriz_k)
     print(f"[Inciso B] Me dieron {validos} puntos válidos de 51 y el RMS cerró en {rms:.4f} px.")
     
     return rotacion_r, traslacion_t
@@ -901,7 +901,7 @@ def resolver_ejercicio_5b(txt_path, matriz_k):
 def calcular_velocidad(trayectoria_pixeles, tiempos, matriz_k, rotacion_r, traslacion_t):
     # Armo la proyección y bajo al plano del piso Z=0 directamente con las columnas 0, 1 y 3
     rt = np.hstack([rotacion_r, traslacion_t])
-    proyeccion = alc.multMat(matriz_k, rt)
+    proyeccion = multMat(matriz_k, rt)
     
     homografia_suelo = np.array([
         [proyeccion[0, 0], proyeccion[0, 1], proyeccion[0, 3]],
@@ -909,17 +909,17 @@ def calcular_velocidad(trayectoria_pixeles, tiempos, matriz_k, rotacion_r, trasl
         [proyeccion[2, 0], proyeccion[2, 1], proyeccion[2, 3]]
     ], dtype=np.float32)
     
-    h_inversa = alc.inversa(homografia_suelo)
+    h_inversa = inversa(homografia_suelo)
     
     metros_recorridos = []
     for i in range(len(trayectoria_pixeles) - 1):
         p1 = np.array([trayectoria_pixeles[i][0], trayectoria_pixeles[i][1], 1.0], dtype=np.float32)
         p2 = np.array([trayectoria_pixeles[i+1][0], trayectoria_pixeles[i+1][1], 1.0], dtype=np.float32)
         
-        real_1 = alc.multMat(h_inversa, p1.reshape(3, 1))
+        real_1 = multMat(h_inversa, p1.reshape(3, 1))
         real_1 = real_1 / real_1[2, 0]
         
-        real_2 = alc.multMat(h_inversa, p2.reshape(3, 1))
+        real_2 = multMat(h_inversa, p2.reshape(3, 1))
         real_2 = real_2 / real_2[2, 0]
         
         dx = real_2[0, 0] - real_1[0, 0]
@@ -1071,8 +1071,8 @@ def evaluarPose(R, t, obj_vecs, img_vecs, K):
 
       Kp = multMat(K,Pcam)
 
-      x_proy = Kp[0] / Zi # dividimos por la profundidad
-      y_proy = Kp[1] / Zi # dividimos por la profundidad
+      x_proy = Kp[0,0] / Zi # dividimos por la profundidad
+      y_proy = Kp[1,0] / Zi # dividimos por la profundidad
 
       dx = x_proy - mi[0] # diferencia entre el proyectado y el observado
       dy = y_proy - mi[1]
