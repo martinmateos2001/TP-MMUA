@@ -555,10 +555,15 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
   # M = resolverDLT3D(Q) se hace directamente desde M
   A = M[:,0:3].copy()
   b = M[:,3].copy()
-  Ainv = inversa(A)
-  Qinv, Rinv = QR_con_HH(Ainv)
-  K = inversa(Rinv)
-  R = Qinv.T
+  P = np.array([
+     [0,0,1],
+     [0,1,0],
+     [1,0,0]
+  ])
+  B = multMat(P, multMat(A.T, P))
+  Q_hat, R_hat = QR_con_HH(B)
+  K = multMat(P,multMat(R_hat.T,P))
+  R = multMat(P,multMat(Q_hat.T,P))
   Knormalizada = K/K[2,2]
   t = multMat(inversa(K),b.reshape(-1,1))
   t = t.reshape(1,-1)
@@ -566,6 +571,11 @@ def devolverMatricesCalibracion3d(M,uigualv = False, k12igual0 = False):
     Knormalizada[1,1] = Knormalizada[0,0]
   if k12igual0 == True:
     Knormalizada[0,1] = 0
+  for i in range(3): # las distancias focales deben ser >0 y el K[3,3] debe ser 1.
+     if K[i,i] < 0:
+        K[i, :] = -K[i, :]
+        R[i, :] = -K[i, :]
+  
   # se supone que si el det(R) es -1 entonces tengo que multiplicar t y R por -1 pues me queda espejado por householder, pero habria que preguntar. tampoco tengo funcion de determinante
   if det(R) == -1:
     R = -R
